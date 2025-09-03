@@ -75,6 +75,14 @@ GOOGLE_CREDENTIALS_FILE=path/to/your/google-credentials.json
 
 ## 🎯 使用方法
 
+### WebUI での実行（推奨）
+
+```bash
+python run_web.py
+```
+
+ブラウザで http://localhost:8501 にアクセスしてWebUIを使用できます。
+
 ### CLI での実行
 
 ```bash
@@ -83,7 +91,14 @@ python main.py
 
 ### 操作フロー
 
-#### Google Sheets連携（推奨）
+#### WebUI（推奨）
+1. **サービス初期化**: サイドバーでサービスを初期化
+2. **キャンペーン作成**: 個別作成・一括作成・テンプレート使用から選択
+3. **フォーム入力**: 直感的なWebフォームで情報を入力
+4. **動画選択**: Google Driveから動画を検索・選択
+5. **作成実行**: ワンクリックでキャンペーンを作成
+
+#### Google Sheets連携
 1. **シート作成**: キャンペーン入力シートを作成
 2. **データ入力**: Google Sheetsでキャンペーン情報を入力
 3. **動画検索**: Google Driveから動画を検索・選択
@@ -121,7 +136,9 @@ auto-meta/
 ├── data/
 │   ├── templates/            # テンプレートファイル
 │   └── video_database.json   # 動画データベース
-├── main.py                   # メインエントリーポイント
+├── main.py                   # CLI メインエントリーポイント
+├── web_app.py               # Streamlit WebUI
+├── run_web.py               # WebUI起動スクリプト
 ├── requirements.txt          # 依存関係
 └── README.md                # このファイル
 ```
@@ -139,6 +156,10 @@ auto-meta/
 - ✅ Google Drive動画管理機能
 - ✅ スプレッドシートベースの入力システム
 - ✅ 動画検索・名前検索・フォルダ検索
+- ✅ Streamlit WebUI
+- ✅ 直感的なWebフォーム
+- ✅ 一括処理機能
+- ✅ リアルタイム進捗表示
 
 ### MVP② (予定)
 - 広告セット＋クリエイティブ作成
