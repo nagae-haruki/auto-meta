@@ -1,15 +1,131 @@
-# auto-meta
+# 📌 Meta広告 自動出稿システム
 
-このリポジトリは自動化メタデータ管理のためのプロジェクトです。
+Meta広告の自動出稿を支援するPythonシステムです。Business Manager配下の複数クライアント広告アカウントに対して、CLI経由でMeta広告を自動作成・出稿できます。
 
-## 概要
+## 🚀 機能
 
-auto-metaは、メタデータの自動生成と管理を支援するツールです。
+- **広告アカウント管理**: Business Manager配下の広告アカウント一覧取得・選択
+- **キャンペーン作成**: 目的・名称・ステータス指定でのキャンペーン作成
+- **広告セット作成**: 予算・スケジュール・配信地域設定
+- **クリエイティブ作成**: 動画・文言・リンクURL設定
+- **広告作成・公開**: 完全な広告作成から出稿まで
+- **ログ管理**: 出稿履歴とエラーログの記録
 
-## 使用方法
+## 📋 要件
 
-詳細な使用方法については、今後追加予定です。
+- Python 3.8+
+- Meta Business Manager アカウント
+- Meta Business API アクセストークン
+- facebook-business SDK
 
-## ライセンス
+## 🛠️ セットアップ
+
+### 1. リポジトリのクローン
+
+```bash
+git clone https://github.com/nagae-haruki/auto-meta.git
+cd auto-meta
+```
+
+### 2. 依存関係のインストール
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. 環境変数の設定
+
+`env.example`を参考に`.env`ファイルを作成し、以下の情報を設定してください：
+
+```bash
+# Meta Business API設定
+META_ACCESS_TOKEN=your_long_lived_access_token_here
+BUSINESS_MANAGER_ID=your_business_manager_id_here
+
+# アプリ設定
+APP_ID=your_facebook_app_id_here
+APP_SECRET=your_facebook_app_secret_here
+```
+
+### 4. Meta Business API アクセストークンの取得
+
+1. [Meta for Developers](https://developers.facebook.com/) でアプリを作成
+2. Business Manager API の権限を取得
+3. 長期アクセストークンを生成
+4. Business Manager ID を取得
+
+## 🎯 使用方法
+
+### CLI での実行
+
+```bash
+python main.py
+```
+
+### 操作フロー
+
+1. **アカウント選択**: 利用可能な広告アカウントから選択
+2. **キャンペーン設定**: 名前・目的を入力
+3. **広告セット設定**: 予算・配信期間を設定
+4. **クリエイティブ設定**: 見出し・説明文・URL・動画を設定
+5. **確認・作成**: 入力内容を確認して広告を作成
+
+## 📁 プロジェクト構造
+
+```
+auto-meta/
+├── src/
+│   ├── __init__.py
+│   ├── config.py          # 設定管理
+│   ├── meta_client.py     # Meta API クライアント
+│   ├── cli.py            # CLI インターフェース
+│   └── logger.py         # ログ管理
+├── logs/                 # ログファイル
+├── data/                 # データファイル
+├── main.py              # メインエントリーポイント
+├── requirements.txt     # 依存関係
+└── README.md           # このファイル
+```
+
+## 🔧 開発ロードマップ
+
+### MVP① (完了)
+- ✅ CLI でクライアント選択＋キャンペーン作成
+- ✅ 広告アカウント一覧取得
+- ✅ キャンペーン作成（テスト）
+
+### MVP② (予定)
+- 広告セット＋クリエイティブ作成
+- 予算・日程・URL・動画を反映
+
+### MVP③ (予定)
+- 広告完成 & 出稿
+- 実際に出稿できる状態まで
+
+### MVP④ (予定)
+- WebフォームUI (Streamlit/Flask)
+- 広告運用者がノーコード的に使える形に
+
+### MVP⑤ (予定)
+- 運用改善
+- 出稿ログを一覧管理
+- 配信停止・削除などの操作も可能に
+
+## ⚠️ 注意事項
+
+- 広告は最初に**一時停止状態**で作成されます
+- 配信開始には、Meta広告マネージャーで手動で有効化が必要です
+- アクセストークンは適切に管理し、定期的に更新してください
+- 本番環境での使用前に、テストアカウントで十分にテストしてください
+
+## 📝 ライセンス
 
 このプロジェクトのライセンスについては、今後決定予定です。
+
+## 🤝 貢献
+
+プルリクエストやイシューの報告を歓迎します。
+
+## 📞 サポート
+
+問題が発生した場合は、GitHubのIssuesで報告してください。
