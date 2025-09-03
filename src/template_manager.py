@@ -151,35 +151,42 @@ class TemplateManager:
     
     def apply_template(self, template_name: str, variables: Dict[str, str] = None) -> Dict[str, Any]:
         """テンプレートを適用して変数を置換"""
-        template = self.load_template(template_name)
-        if not template:
-            raise ValueError(f"テンプレート '{template_name}' が見つかりません")
-        
-        if variables is None:
-            variables = {}
-        
-        # デフォルト変数を設定
-        default_variables = {
-            'campaign_name': 'Test Campaign',
-            'product_name': '商品名',
-            'current_date': datetime.now().strftime('%Y-%m-%d'),
-            'current_time': datetime.now().strftime('%H:%M:%S')
-        }
-        default_variables.update(variables)
-        
-        # テンプレートをコピーして変数を置換
-        applied_template = json.loads(json.dumps(template))  # ディープコピー
-        
-        # 文字列テンプレートの置換
-        self._replace_variables(applied_template, default_variables)
-        
-        # 日時の自動設定
-        self._apply_auto_settings(applied_template)
-        
-        return applied_template
+        try:
+            template = self.load_template(template_name)
+            if not template:
+                raise ValueError(f"テンプレート '{template_name}' が見つかりません")
+            
+            if variables is None:
+                variables = {}
+            
+            # デフォルト変数を設定
+            default_variables = {
+                'campaign_name': 'Test Campaign',
+                'product_name': '商品名',
+                'current_date': datetime.now().strftime('%Y-%m-%d'),
+                'current_time': datetime.now().strftime('%H:%M:%S')
+            }
+            default_variables.update(variables)
+            
+            # テンプレートをコピーして変数を置換
+            applied_template = json.loads(json.dumps(template))  # ディープコピー
+            
+            # 文字列テンプレートの置換
+            self._replace_variables(applied_template, default_variables, depth=0, max_depth=10)
+            
+            # 日時の自動設定
+            self._apply_auto_settings(applied_template)
+            
+            return applied_template
+        except Exception as e:
+            print(f"❌ テンプレート適用エラー: {e}")
+            return None
     
-    def _replace_variables(self, obj: Any, variables: Dict[str, str]):
-        """オブジェクト内の変数を置換"""
+    def _replace_variables(self, obj: Any, variables: Dict[str, str], depth: int = 0, max_depth: int = 10):
+        """オブジェクト内の変数を置換（再帰制限付き）"""
+        if depth > max_depth:
+            return  # 無限再帰を防ぐ
+        
         if isinstance(obj, dict):
             for key, value in obj.items():
                 if isinstance(value, str) and '{' in value:
@@ -189,10 +196,10 @@ class TemplateManager:
                         # 変数が見つからない場合はそのまま
                         pass
                 else:
-                    self._replace_variables(value, variables)
+                    self._replace_variables(value, variables, depth + 1, max_depth)
         elif isinstance(obj, list):
             for item in obj:
-                self._replace_variables(item, variables)
+                self._replace_variables(item, variables, depth + 1, max_depth)
     
     def _apply_auto_settings(self, template: Dict[str, Any]):
         """自動設定を適用"""
