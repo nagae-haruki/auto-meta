@@ -7,6 +7,8 @@ Meta広告の自動出稿を支援するPythonシステムです。Business Mana
 - **広告アカウント管理**: Business Manager配下の広告アカウント一覧取得・選択
 - **テンプレートシステム**: 再利用可能な広告テンプレートの作成・管理・適用
 - **クイック出稿**: テンプレートベースの高速広告作成
+- **Google Sheets連携**: スプレッドシートでの入力・一括処理・進捗管理
+- **Google Drive動画管理**: 動画検索・名前検索・フォルダ検索・データベース化
 - **キャンペーン作成**: 目的・名称・ステータス指定でのキャンペーン作成
 - **広告セット作成**: 予算・スケジュール・配信地域設定
 - **クリエイティブ作成**: 動画・文言・リンクURL設定
@@ -19,7 +21,10 @@ Meta広告の自動出稿を支援するPythonシステムです。Business Mana
 - Python 3.8+
 - Meta Business Manager アカウント
 - Meta Business API アクセストークン
+- Google Cloud Platform アカウント（Google Sheets/Drive連携用）
+- Google API 認証情報（サービスアカウントキー）
 - facebook-business SDK
+- Google API クライアントライブラリ
 
 ## 🛠️ セットアップ
 
@@ -48,6 +53,9 @@ BUSINESS_MANAGER_ID=your_business_manager_id_here
 # アプリ設定
 APP_ID=your_facebook_app_id_here
 APP_SECRET=your_facebook_app_secret_here
+
+# Google API設定
+GOOGLE_CREDENTIALS_FILE=path/to/your/google-credentials.json
 ```
 
 ### 4. Meta Business API アクセストークンの取得
@@ -56,6 +64,14 @@ APP_SECRET=your_facebook_app_secret_here
 2. Business Manager API の権限を取得
 3. 長期アクセストークンを生成
 4. Business Manager ID を取得
+
+### 5. Google API 認証情報の取得
+
+1. [Google Cloud Console](https://console.cloud.google.com/) でプロジェクトを作成
+2. Google Sheets API と Google Drive API を有効化
+3. サービスアカウントを作成
+4. サービスアカウントキー（JSON）をダウンロード
+5. ダウンロードしたJSONファイルのパスを環境変数に設定
 
 ## 🎯 使用方法
 
@@ -66,6 +82,13 @@ python main.py
 ```
 
 ### 操作フロー
+
+#### Google Sheets連携（推奨）
+1. **シート作成**: キャンペーン入力シートを作成
+2. **データ入力**: Google Sheetsでキャンペーン情報を入力
+3. **動画検索**: Google Driveから動画を検索・選択
+4. **一括処理**: シートからデータを読み込み・一括作成
+5. **進捗管理**: シート上でステータスを自動更新
 
 #### クイック出稿（テンプレート使用）
 1. **テンプレート選択**: 事前作成したテンプレートから選択
@@ -87,17 +110,20 @@ python main.py
 auto-meta/
 ├── src/
 │   ├── __init__.py
-│   ├── config.py          # 設定管理
-│   ├── meta_client.py     # Meta API クライアント
-│   ├── cli.py            # CLI インターフェース
-│   ├── logger.py         # ログ管理
-│   └── template_manager.py # テンプレート管理
-├── logs/                 # ログファイル
+│   ├── config.py              # 設定管理
+│   ├── meta_client.py         # Meta API クライアント
+│   ├── cli.py                # CLI インターフェース
+│   ├── logger.py             # ログ管理
+│   ├── template_manager.py   # テンプレート管理
+│   ├── google_sheets_manager.py # Google Sheets連携
+│   └── google_drive_manager.py  # Google Drive動画管理
+├── logs/                     # ログファイル
 ├── data/
-│   └── templates/        # テンプレートファイル
-├── main.py              # メインエントリーポイント
-├── requirements.txt     # 依存関係
-└── README.md           # このファイル
+│   ├── templates/            # テンプレートファイル
+│   └── video_database.json   # 動画データベース
+├── main.py                   # メインエントリーポイント
+├── requirements.txt          # 依存関係
+└── README.md                # このファイル
 ```
 
 ## 🔧 開発ロードマップ
@@ -109,6 +135,10 @@ auto-meta/
 - ✅ テンプレート管理システム
 - ✅ クイック出稿機能
 - ✅ 自動設定項目のテンプレート化
+- ✅ Google Sheets連携機能
+- ✅ Google Drive動画管理機能
+- ✅ スプレッドシートベースの入力システム
+- ✅ 動画検索・名前検索・フォルダ検索
 
 ### MVP② (予定)
 - 広告セット＋クリエイティブ作成

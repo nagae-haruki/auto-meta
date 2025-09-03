@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from .meta_client import MetaAdsClient
 from .logger import AdLogger
 from .template_manager import TemplateManager
+from .google_sheets_manager import GoogleSheetsManager
+from .google_drive_manager import GoogleDriveManager
 
 class MetaAdsCLI:
     """Meta広告自動出稿システム CLI"""
@@ -15,6 +17,8 @@ class MetaAdsCLI:
         self.client = MetaAdsClient()
         self.logger = AdLogger()
         self.template_manager = TemplateManager()
+        self.sheets_manager = GoogleSheetsManager()
+        self.drive_manager = GoogleDriveManager()
     
     def display_welcome(self):
         """ウェルカムメッセージ表示"""
@@ -702,6 +706,334 @@ class MetaAdsCLI:
             print("❌ 数値を入力してください。デフォルトテンプレートを使用します。")
             return "デフォルトテンプレート"
     
+    def manage_google_sheets(self):
+        """Google Sheets連携管理"""
+        while True:
+            print("\n📊 Google Sheets連携:")
+            print("1. キャンペーン入力シート作成")
+            print("2. テンプレート設定シート作成")
+            print("3. 一括キャンペーンシート作成")
+            print("4. シートからデータ読み込み")
+            print("5. 戻る")
+            
+            choice = input("\n選択してください (1-5): ").strip()
+            
+            if choice == '1':
+                self.create_campaign_input_sheet()
+            elif choice == '2':
+                self.create_template_setting_sheet()
+            elif choice == '3':
+                self.create_batch_campaign_sheet()
+            elif choice == '4':
+                self.load_data_from_sheet()
+            elif choice == '5':
+                break
+            else:
+                print("❌ 無効な選択です。")
+    
+    def create_campaign_input_sheet(self):
+        """キャンペーン入力シートを作成"""
+        print("\n📝 キャンペーン入力シートを作成します")
+        
+        sheet_name = input("シート名 (オプション): ").strip()
+        if not sheet_name:
+            sheet_name = None
+        
+        url = self.sheets_manager.create_campaign_sheet(sheet_name)
+        if url:
+            print(f"\n✅ シートが作成されました！")
+            print(f"📊 URL: {url}")
+            print("\n📋 入力項目:")
+            print("- キャンペーン名 (必須)")
+            print("- 商品名 (オプション)")
+            print("- 目的 (LINK_CLICKS, CONVERSIONS, REACH, BRAND_AWARENESS)")
+            print("- 予算 (円/日)")
+            print("- 開始日 (YYYY-MM-DD)")
+            print("- 終了日 (YYYY-MM-DD)")
+            print("- 見出し")
+            print("- 説明文")
+            print("- URL")
+            print("- 動画名 (Google Driveから検索)")
+            print("\n💡 シートに入力後、'4. シートからデータ読み込み' で処理できます")
+    
+    def create_template_setting_sheet(self):
+        """テンプレート設定シートを作成"""
+        print("\n📝 テンプレート設定シートを作成します")
+        
+        template_name = input("テンプレート名: ").strip()
+        if not template_name:
+            print("❌ テンプレート名は必須です。")
+            return
+        
+        url = self.sheets_manager.create_template_sheet(template_name)
+        if url:
+            print(f"\n✅ テンプレート設定シートが作成されました！")
+            print(f"📊 URL: {url}")
+            print("\n📋 設定項目:")
+            print("- テンプレート名、説明")
+            print("- キャンペーン目的")
+            print("- デフォルト予算")
+            print("- 配信期間")
+            print("- 見出し・説明文・URLテンプレート")
+            print("- ターゲティング設定")
+            print("\n💡 シートで設定後、テンプレートとして保存できます")
+    
+    def create_batch_campaign_sheet(self):
+        """一括キャンペーンシートを作成"""
+        print("\n📝 一括キャンペーンシートを作成します")
+        
+        # サンプルデータを作成
+        sample_campaigns = [
+            {
+                'campaign_name': 'サンプルキャンペーン1',
+                'product_name': '商品A',
+                'template_name': 'デフォルトテンプレート',
+                'budget': 1000,
+                'start_date': datetime.now().strftime('%Y-%m-%d'),
+                'end_date': (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d'),
+                'headline': '【商品A】今だけ特別価格！',
+                'description': 'お得な情報をお見逃しなく！',
+                'url': 'https://example.com/product-a',
+                'video_name': ''
+            },
+            {
+                'campaign_name': 'サンプルキャンペーン2',
+                'product_name': '商品B',
+                'template_name': 'デフォルトテンプレート',
+                'budget': 2000,
+                'start_date': datetime.now().strftime('%Y-%m-%d'),
+                'end_date': (datetime.now() + timedelta(days=14)).strftime('%Y-%m-%d'),
+                'headline': '【商品B】限定セール開催中！',
+                'description': '数量限定！今すぐチェック！',
+                'url': 'https://example.com/product-b',
+                'video_name': ''
+            }
+        ]
+        
+        url = self.sheets_manager.create_batch_sheet(sample_campaigns)
+        if url:
+            print(f"\n✅ 一括キャンペーンシートが作成されました！")
+            print(f"📊 URL: {url}")
+            print("\n📋 サンプルデータが入力されています")
+            print("💡 必要に応じて編集後、'4. シートからデータ読み込み' で処理できます")
+    
+    def load_data_from_sheet(self):
+        """シートからデータを読み込み"""
+        print("\n📊 シートからデータを読み込みます")
+        
+        spreadsheet_url = input("スプレッドシートのURL: ").strip()
+        if not spreadsheet_url:
+            print("❌ URLは必須です。")
+            return
+        
+        # データを読み込み
+        campaigns = self.sheets_manager.read_campaign_data(spreadsheet_url)
+        if not campaigns:
+            print("❌ 有効なデータが見つかりません。")
+            return
+        
+        print(f"\n✅ {len(campaigns)}件のキャンペーンデータを読み込みました")
+        
+        # 各キャンペーンを処理
+        for i, campaign in enumerate(campaigns, 1):
+            print(f"\n📝 キャンペーン {i}/{len(campaigns)}: {campaign.get('キャンペーン名', '')}")
+            
+            # 動画検索
+            video_name = campaign.get('動画名', '')
+            video_id = None
+            if video_name:
+                video_id = self.search_video_by_name(video_name)
+                if video_id:
+                    print(f"✅ 動画が見つかりました: {video_name}")
+                else:
+                    print(f"⚠️ 動画が見つかりません: {video_name}")
+            
+            # キャンペーン作成の確認
+            confirm = input("このキャンペーンを作成しますか？ (y/N): ").strip().lower()
+            if confirm == 'y':
+                success = self.create_campaign_from_sheet_data(campaign, video_id)
+                if success:
+                    # ステータスを更新
+                    self.sheets_manager.update_campaign_status(
+                        spreadsheet_url, 
+                        campaign.get('キャンペーン名', ''), 
+                        '完了'
+                    )
+                else:
+                    self.sheets_manager.update_campaign_status(
+                        spreadsheet_url, 
+                        campaign.get('キャンペーン名', ''), 
+                        'エラー'
+                    )
+    
+    def create_campaign_from_sheet_data(self, campaign_data, video_id=None):
+        """シートデータからキャンペーンを作成"""
+        try:
+            # アカウント選択
+            account = self.select_ad_account()
+            if not account:
+                return False
+            
+            # テンプレートデータを構築
+            template_data = {
+                'campaign': {
+                    'name_template': campaign_data.get('キャンペーン名', ''),
+                    'objective': campaign_data.get('目的', 'LINK_CLICKS'),
+                    'status': 'PAUSED'
+                },
+                'ad_set': {
+                    'name_template': f"{campaign_data.get('キャンペーン名', '')}_AdSet",
+                    'budget': float(campaign_data.get('予算(円/日)', 1000)),
+                    'start_time': campaign_data.get('開始日', datetime.now().strftime('%Y-%m-%d')),
+                    'end_time': campaign_data.get('終了日', (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')),
+                    'targeting': {
+                        'geo_locations': {'countries': ['JP']},
+                        'age_min': 18,
+                        'age_max': 65
+                    }
+                },
+                'creative': {
+                    'name_template': f"{campaign_data.get('キャンペーン名', '')}_Creative",
+                    'headline_template': campaign_data.get('見出し', ''),
+                    'description_template': campaign_data.get('説明文', ''),
+                    'url_template': campaign_data.get('URL', ''),
+                    'video_id': video_id
+                },
+                'ad': {
+                    'name_template': f"{campaign_data.get('キャンペーン名', '')}_Ad",
+                    'status': 'PAUSED'
+                }
+            }
+            
+            # キャンペーン作成実行
+            return self.execute_campaign_creation(account, template_data)
+            
+        except Exception as e:
+            print(f"❌ キャンペーン作成エラー: {e}")
+            return False
+    
+    def manage_videos(self):
+        """動画管理"""
+        while True:
+            print("\n🎬 動画管理:")
+            print("1. 動画検索")
+            print("2. 名前で動画検索")
+            print("3. 最近の動画表示")
+            print("4. フォルダ内動画検索")
+            print("5. 動画データベース作成")
+            print("6. 戻る")
+            
+            choice = input("\n選択してください (1-6): ").strip()
+            
+            if choice == '1':
+                self.search_videos()
+            elif choice == '2':
+                self.search_videos_by_name()
+            elif choice == '3':
+                self.show_recent_videos()
+            elif choice == '4':
+                self.search_videos_in_folder()
+            elif choice == '5':
+                self.create_video_database()
+            elif choice == '6':
+                break
+            else:
+                print("❌ 無効な選択です。")
+    
+    def search_videos(self):
+        """動画検索"""
+        print("\n🔍 動画を検索します")
+        
+        query = input("検索キーワード (オプション): ").strip()
+        max_results = input("最大結果数 (デフォルト: 20): ").strip()
+        
+        try:
+            max_results = int(max_results) if max_results else 20
+        except ValueError:
+            max_results = 20
+        
+        videos = self.drive_manager.search_videos(query=query, max_results=max_results)
+        self.display_videos(videos)
+    
+    def search_videos_by_name(self):
+        """名前で動画検索"""
+        print("\n🔍 動画名で検索します")
+        
+        name_query = input("動画名の一部: ").strip()
+        if not name_query:
+            print("❌ 検索キーワードは必須です。")
+            return
+        
+        videos = self.drive_manager.search_videos_by_name(name_query)
+        self.display_videos(videos)
+    
+    def show_recent_videos(self):
+        """最近の動画表示"""
+        print("\n📅 最近の動画を表示します")
+        
+        days = input("何日前から (デフォルト: 30日): ").strip()
+        try:
+            days = int(days) if days else 30
+        except ValueError:
+            days = 30
+        
+        videos = self.drive_manager.get_recent_videos(days=days)
+        self.display_videos(videos)
+    
+    def search_videos_in_folder(self):
+        """フォルダ内動画検索"""
+        print("\n📁 フォルダ内の動画を検索します")
+        
+        folder_name = input("フォルダ名: ").strip()
+        if not folder_name:
+            print("❌ フォルダ名は必須です。")
+            return
+        
+        videos = self.drive_manager.search_videos_in_folder(folder_name)
+        self.display_videos(videos)
+    
+    def create_video_database(self):
+        """動画データベース作成"""
+        print("\n💾 動画データベースを作成します")
+        
+        confirm = input("すべての動画をスキャンしてデータベースを作成しますか？ (y/N): ").strip().lower()
+        if confirm == 'y':
+            success = self.drive_manager.create_video_database()
+            if success:
+                print("✅ 動画データベースが作成されました")
+            else:
+                print("❌ 動画データベースの作成に失敗しました")
+    
+    def display_videos(self, videos):
+        """動画一覧を表示"""
+        if not videos:
+            print("❌ 動画が見つかりません。")
+            return
+        
+        print(f"\n📹 {len(videos)}個の動画が見つかりました:")
+        print("-" * 80)
+        
+        for i, video in enumerate(videos, 1):
+            print(f"{i}. {video['name']}")
+            print(f"   ID: {video['id']}")
+            print(f"   サイズ: {video['size']}")
+            print(f"   作成日: {video['created_time'][:10]}")
+            print(f"   URL: {video['web_view_link']}")
+            print()
+    
+    def search_video_by_name(self, video_name):
+        """動画名で動画IDを検索"""
+        videos = self.drive_manager.search_videos_by_name(video_name)
+        if videos:
+            # 完全一致を優先
+            for video in videos:
+                if video['name'].lower() == video_name.lower():
+                    return video['id']
+            
+            # 完全一致がない場合は最初の結果を返す
+            return videos[0]['id']
+        return None
+    
     def run(self):
         """メイン実行ループ"""
         self.display_welcome()
@@ -710,18 +1042,24 @@ class MetaAdsCLI:
             print("\n📌 メニュー:")
             print("1. 広告キャンペーン作成")
             print("2. テンプレート管理")
-            print("3. 最近のログ表示")
-            print("4. 終了")
+            print("3. Google Sheets連携")
+            print("4. 動画管理")
+            print("5. 最近のログ表示")
+            print("6. 終了")
             
-            choice = input("\n選択してください (1-4): ").strip()
+            choice = input("\n選択してください (1-6): ").strip()
             
             if choice == '1':
                 self.create_campaign_flow()
             elif choice == '2':
                 self.manage_templates()
             elif choice == '3':
-                self.show_recent_logs()
+                self.manage_google_sheets()
             elif choice == '4':
+                self.manage_videos()
+            elif choice == '5':
+                self.show_recent_logs()
+            elif choice == '6':
                 print("👋 システムを終了します。")
                 break
             else:
