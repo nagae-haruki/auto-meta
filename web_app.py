@@ -312,23 +312,248 @@ def single_campaign_form():
 
 def batch_campaign_form():
     """一括キャンペーン作成フォーム"""
-    st.subheader("📊 一括キャンペーン作成")
+    st.subheader("📊 複数キャンペーン同時出稿")
     
-    # CSV アップロード
+    # 作成方法選択
+    creation_method = st.radio(
+        "作成方法を選択:",
+        ["📝 フォーム入力（推奨）", "📄 CSVファイル", "⚡ テンプレート一括適用"],
+        horizontal=True
+    )
+    
+    if creation_method == "📝 フォーム入力（推奨）":
+        multi_campaign_form()
+    elif creation_method == "📄 CSVファイル":
+        csv_batch_form()
+    elif creation_method == "⚡ テンプレート一括適用":
+        template_batch_form()
+
+def multi_campaign_form():
+    """複数キャンペーン入力フォーム"""
+    st.info("💡 複数のキャンペーンを同時に入力・出稿できます")
+    
+    # アカウント選択
+    try:
+        accounts = st.session_state.meta_client.get_ad_accounts()
+        account_options = {f"{acc['name']} (ID: {acc['id']})": acc['id'] for acc in accounts}
+        selected_account = st.selectbox(
+            "広告アカウント",
+            options=list(account_options.keys()),
+            help="一括作成する広告アカウントを選択"
+        )
+        account_id = account_options[selected_account]
+    except Exception as e:
+        st.error(f"アカウント取得エラー: {e}")
+        return
+    
+    # キャンペーン数選択
+    num_campaigns = st.slider("作成するキャンペーン数", 1, 10, 3)
+    
+    # 共通設定
+    st.subheader("🔧 共通設定")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        common_objective = st.selectbox(
+            "キャンペーン目的",
+            ["LINK_CLICKS", "CONVERSIONS", "REACH", "BRAND_AWARENESS"],
+            help="すべてのキャンペーンに適用"
+        )
+        
+        common_budget = st.number_input(
+            "共通予算 (円/日)",
+            min_value=100,
+            value=1000,
+            step=100,
+            help="すべてのキャンペーンに適用"
+        )
+    
+    with col2:
+        common_start_date = st.date_input(
+            "配信開始日",
+            value=datetime.now().date(),
+            help="すべてのキャンペーンに適用"
+        )
+        
+        common_end_date = st.date_input(
+            "配信終了日",
+            value=(datetime.now() + timedelta(days=7)).date(),
+            help="すべてのキャンペーンに適用"
+        )
+    
+    # 個別キャンペーン設定
+    st.subheader("📝 個別キャンペーン設定")
+    
+    campaigns_data = []
+    
+    for i in range(num_campaigns):
+        with st.expander(f"キャンペーン {i+1}", expanded=True):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                campaign_name = st.text_input(
+                    f"キャンペーン名 {i+1}",
+                    placeholder=f"キャンペーン{i+1}",
+                    key=f"campaign_name_{i}"
+                )
+                
+                product_name = st.text_input(
+                    f"商品名 {i+1}",
+                    placeholder=f"商品{i+1}",
+                    key=f"product_name_{i}"
+                )
+                
+                headline = st.text_area(
+                    f"見出し {i+1}",
+                    placeholder=f"【{product_name or f'商品{i+1}'}】今だけ特別価格！",
+                    height=80,
+                    key=f"headline_{i}"
+                )
+            
+            with col2:
+                description = st.text_area(
+                    f"説明文 {i+1}",
+                    placeholder="お得な情報をお見逃しなく！詳細はこちらから。",
+                    height=80,
+                    key=f"description_{i}"
+                )
+                
+                url = st.text_input(
+                    f"リンク先URL {i+1}",
+                    placeholder="https://example.com/landing-page",
+                    key=f"url_{i}"
+                )
+                
+                # 動画選択
+                video_option = st.radio(
+                    f"動画選択 {i+1}",
+                    ["Google Driveから検索", "動画なし"],
+                    key=f"video_option_{i}",
+                    horizontal=True
+                )
+                
+                video_id = None
+                if video_option == "Google Driveから検索":
+                    video_search_term = st.text_input(
+                        f"動画名で検索 {i+1}",
+                        placeholder="動画名の一部を入力",
+                        key=f"video_search_{i}"
+                    )
+                    if video_search_term and st.button(f"🔍 検索 {i+1}", key=f"search_btn_{i}"):
+                        with st.spinner("動画を検索中..."):
+                            try:
+                                videos = st.session_state.drive_manager.search_videos_by_name(video_search_term)
+                                if videos:
+                                    video_options = {f"{v['name']} ({v['size']})": v['id'] for v in videos}
+                                    selected_video = st.selectbox(
+                                        f"検索結果から選択 {i+1}",
+                                        options=list(video_options.keys()),
+                                        key=f"video_select_{i}"
+                                    )
+                                    video_id = video_options[selected_video]
+                                    st.success(f"✅ 動画を選択しました: {selected_video}")
+                                else:
+                                    st.warning("動画が見つかりませんでした")
+                            except Exception as e:
+                                st.error(f"動画検索エラー: {e}")
+            
+            # 個別予算設定（オプション）
+            use_custom_budget = st.checkbox(f"個別予算を設定 {i+1}", key=f"custom_budget_{i}")
+            budget = common_budget
+            if use_custom_budget:
+                budget = st.number_input(
+                    f"予算 (円/日) {i+1}",
+                    min_value=100,
+                    value=common_budget,
+                    step=100,
+                    key=f"budget_{i}"
+                )
+            
+            # データを保存
+            if campaign_name:
+                campaigns_data.append({
+                    'campaign_name': campaign_name,
+                    'product_name': product_name,
+                    'objective': common_objective,
+                    'budget': budget,
+                    'start_date': common_start_date.strftime('%Y-%m-%d'),
+                    'end_date': common_end_date.strftime('%Y-%m-%d'),
+                    'headline': headline,
+                    'description': description,
+                    'url': url,
+                    'video_id': video_id
+                })
+    
+    # 一括作成実行
+    if st.button("🚀 複数キャンペーンを同時作成", type="primary", disabled=len(campaigns_data) == 0):
+        if len(campaigns_data) == 0:
+            st.warning("⚠️ 少なくとも1つのキャンペーン名を入力してください")
+            return
+        
+        with st.spinner("複数キャンペーンを作成中..."):
+            success_count = 0
+            error_count = 0
+            created_campaigns = []
+            
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            for i, campaign_data in enumerate(campaigns_data):
+                status_text.text(f"処理中: {campaign_data['campaign_name']} ({i+1}/{len(campaigns_data)})")
+                
+                try:
+                    success = create_campaign(
+                        account_id=account_id,
+                        campaign_name=campaign_data['campaign_name'],
+                        objective=campaign_data['objective'],
+                        budget=campaign_data['budget'],
+                        start_date=campaign_data['start_date'],
+                        end_date=campaign_data['end_date'],
+                        headline=campaign_data['headline'],
+                        description=campaign_data['description'],
+                        url=campaign_data['url'],
+                        video_id=campaign_data['video_id'],
+                        show_success=False
+                    )
+                    
+                    if success:
+                        success_count += 1
+                        created_campaigns.append(campaign_data['campaign_name'])
+                    else:
+                        error_count += 1
+                        
+                except Exception as e:
+                    st.error(f"エラー: {campaign_data['campaign_name']} - {e}")
+                    error_count += 1
+                
+                progress_bar.progress((i + 1) / len(campaigns_data))
+            
+            status_text.text("完了")
+            
+            # 結果表示
+            st.success(f"✅ 一括作成完了: 成功 {success_count}件, エラー {error_count}件")
+            
+            if created_campaigns:
+                st.subheader("📋 作成されたキャンペーン")
+                for campaign_name in created_campaigns:
+                    st.success(f"✅ {campaign_name}")
+
+def csv_batch_form():
+    """CSV一括作成フォーム"""
     st.info("💡 CSVファイルで一括作成できます")
     
     # サンプルCSVダウンロード
     sample_data = {
-        'キャンペーン名': ['サンプルキャンペーン1', 'サンプルキャンペーン2'],
-        '商品名': ['商品A', '商品B'],
-        '目的': ['LINK_CLICKS', 'CONVERSIONS'],
-        '予算(円/日)': [1000, 2000],
-        '開始日': ['2024-01-01', '2024-01-01'],
-        '終了日': ['2024-01-07', '2024-01-14'],
-        '見出し': ['【商品A】特別価格！', '【商品B】限定セール！'],
-        '説明文': ['お得な情報をお見逃しなく！', '数量限定！今すぐチェック！'],
-        'URL': ['https://example.com/product-a', 'https://example.com/product-b'],
-        '動画名': ['', '']
+        'キャンペーン名': ['サンプルキャンペーン1', 'サンプルキャンペーン2', 'サンプルキャンペーン3'],
+        '商品名': ['商品A', '商品B', '商品C'],
+        '目的': ['LINK_CLICKS', 'CONVERSIONS', 'LINK_CLICKS'],
+        '予算(円/日)': [1000, 2000, 1500],
+        '開始日': ['2024-01-01', '2024-01-01', '2024-01-01'],
+        '終了日': ['2024-01-07', '2024-01-14', '2024-01-10'],
+        '見出し': ['【商品A】特別価格！', '【商品B】限定セール！', '【商品C】新商品登場！'],
+        '説明文': ['お得な情報をお見逃しなく！', '数量限定！今すぐチェック！', '今だけの特別価格でお試しください！'],
+        'URL': ['https://example.com/product-a', 'https://example.com/product-b', 'https://example.com/product-c'],
+        '動画名': ['商品A動画', '商品B動画', '']
     }
     
     sample_df = pd.DataFrame(sample_data)
@@ -337,7 +562,7 @@ def batch_campaign_form():
     st.download_button(
         label="📥 サンプルCSVをダウンロード",
         data=csv,
-        file_name="campaign_template.csv",
+        file_name="multi_campaign_template.csv",
         mime="text/csv"
     )
     
@@ -372,10 +597,11 @@ def batch_campaign_form():
                 return
             
             # 一括作成実行
-            if st.button("🚀 一括作成を実行", type="primary"):
+            if st.button("🚀 CSV一括作成を実行", type="primary"):
                 with st.spinner("一括作成中..."):
                     success_count = 0
                     error_count = 0
+                    created_campaigns = []
                     
                     progress_bar = st.progress(0)
                     status_text = st.empty()
@@ -408,6 +634,7 @@ def batch_campaign_form():
                             
                             if success:
                                 success_count += 1
+                                created_campaigns.append(row['キャンペーン名'])
                             else:
                                 error_count += 1
                                 
@@ -420,8 +647,154 @@ def batch_campaign_form():
                     status_text.text("完了")
                     st.success(f"✅ 一括作成完了: 成功 {success_count}件, エラー {error_count}件")
                     
+                    if created_campaigns:
+                        st.subheader("📋 作成されたキャンペーン")
+                        for campaign_name in created_campaigns:
+                            st.success(f"✅ {campaign_name}")
+                    
         except Exception as e:
             st.error(f"CSV読み込みエラー: {e}")
+
+def template_batch_form():
+    """テンプレート一括適用フォーム"""
+    st.info("💡 テンプレートを使用して複数キャンペーンを一括作成")
+    
+    if st.session_state.template_manager is None:
+        st.warning("⚠️ テンプレート管理サービスが初期化されていません")
+        return
+    
+    # テンプレート選択
+    try:
+        templates = st.session_state.template_manager.list_templates()
+        if not templates:
+            st.warning("利用可能なテンプレートがありません")
+            return
+        
+        template_options = {t['name']: t['name'] for t in templates}
+        selected_template = st.selectbox(
+            "使用するテンプレート",
+            options=list(template_options.keys()),
+            help="事前作成したテンプレートから選択"
+        )
+        
+        # テンプレート情報表示
+        template_info = st.session_state.template_manager.load_template(selected_template)
+        if template_info:
+            with st.expander("📋 テンプレート設定を確認"):
+                st.json(template_info)
+        
+        # 一括作成設定
+        st.subheader("🔧 一括作成設定")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            num_campaigns = st.slider("作成するキャンペーン数", 1, 20, 5)
+            
+            # アカウント選択
+            try:
+                accounts = st.session_state.meta_client.get_ad_accounts()
+                account_options = {f"{acc['name']} (ID: {acc['id']})": acc['id'] for acc in accounts}
+                selected_account = st.selectbox(
+                    "広告アカウント",
+                    options=list(account_options.keys()),
+                    help="一括作成する広告アカウントを選択"
+                )
+                account_id = account_options[selected_account]
+            except Exception as e:
+                st.error(f"アカウント取得エラー: {e}")
+                return
+        
+        with col2:
+            common_budget = st.number_input(
+                "共通予算 (円/日)",
+                min_value=100,
+                value=int(template_info.get('ad_set', {}).get('budget', 1000)),
+                step=100
+            )
+            
+            common_start_date = st.date_input(
+                "配信開始日",
+                value=datetime.now().date()
+            )
+            
+            common_end_date = st.date_input(
+                "配信終了日",
+                value=(datetime.now() + timedelta(days=7)).date()
+            )
+        
+        # 商品名リスト入力
+        st.subheader("📝 商品名リスト")
+        product_names_text = st.text_area(
+            "商品名を1行に1つずつ入力",
+            placeholder="商品A\n商品B\n商品C\n商品D\n商品E",
+            height=150,
+            help="各行に1つの商品名を入力してください"
+        )
+        
+        product_names = [name.strip() for name in product_names_text.split('\n') if name.strip()]
+        
+        if len(product_names) < num_campaigns:
+            st.warning(f"⚠️ 商品名が{num_campaigns}個未満です。不足分は自動で生成されます。")
+            for i in range(len(product_names), num_campaigns):
+                product_names.append(f"商品{i+1}")
+        
+        # 一括作成実行
+        if st.button("🚀 テンプレート一括作成を実行", type="primary"):
+            with st.spinner("テンプレート一括作成中..."):
+                success_count = 0
+                error_count = 0
+                created_campaigns = []
+                
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                for i in range(num_campaigns):
+                    product_name = product_names[i] if i < len(product_names) else f"商品{i+1}"
+                    campaign_name = f"{product_name}_キャンペーン_{datetime.now().strftime('%Y%m%d')}"
+                    
+                    status_text.text(f"処理中: {campaign_name} ({i+1}/{num_campaigns})")
+                    
+                    try:
+                        # テンプレート適用
+                        variables = {
+                            'campaign_name': campaign_name,
+                            'product_name': product_name,
+                            'current_date': datetime.now().strftime('%Y-%m-%d')
+                        }
+                        
+                        applied_template = st.session_state.template_manager.apply_template(selected_template, variables)
+                        
+                        # カスタマイズ値を適用
+                        applied_template['ad_set']['budget'] = common_budget
+                        applied_template['ad_set']['start_time'] = common_start_date.strftime('%Y-%m-%d')
+                        applied_template['ad_set']['end_time'] = common_end_date.strftime('%Y-%m-%d')
+                        
+                        # キャンペーン作成実行
+                        success = create_campaign_from_template(account_id, applied_template, show_success=False)
+                        
+                        if success:
+                            success_count += 1
+                            created_campaigns.append(campaign_name)
+                        else:
+                            error_count += 1
+                            
+                    except Exception as e:
+                        st.error(f"エラー: {campaign_name} - {e}")
+                        error_count += 1
+                    
+                    progress_bar.progress((i + 1) / num_campaigns)
+                
+                status_text.text("完了")
+                st.success(f"✅ テンプレート一括作成完了: 成功 {success_count}件, エラー {error_count}件")
+                
+                if created_campaigns:
+                    st.subheader("📋 作成されたキャンペーン")
+                    for campaign_name in created_campaigns:
+                        st.success(f"✅ {campaign_name}")
+    
+    except Exception as e:
+        st.error(f"テンプレート取得エラー: {e}")
 
 def template_campaign_form():
     """テンプレート使用キャンペーン作成フォーム"""
@@ -591,10 +964,62 @@ def create_campaign(account_id, campaign_name, objective, budget, start_date, en
         st.session_state.logger.log_campaign_creation({}, False, str(e))
         return False
 
-def create_campaign_from_template(account_id, template_data):
+def create_campaign_from_template(account_id, template_data, show_success=True):
     """テンプレートからキャンペーン作成"""
     try:
-        with st.spinner("テンプレートからキャンペーンを作成中..."):
+        if show_success:
+            with st.spinner("テンプレートからキャンペーンを作成中..."):
+                # キャンペーン作成
+                campaign = st.session_state.meta_client.create_campaign(
+                    account_id,
+                    template_data['campaign']['name_template'],
+                    template_data['campaign']['objective']
+                )
+                
+                # 広告セット作成
+                ad_set = st.session_state.meta_client.create_ad_set(
+                    account_id,
+                    campaign['id'],
+                    template_data['ad_set']['name_template'],
+                    template_data['ad_set']['budget'],
+                    template_data['ad_set']['start_time'],
+                    template_data['ad_set']['end_time']
+                )
+                
+                # クリエイティブ作成
+                creative = st.session_state.meta_client.create_ad_creative(
+                    account_id,
+                    template_data['creative']['name_template'],
+                    template_data['creative']['headline_template'],
+                    template_data['creative']['description_template'],
+                    template_data['creative']['url_template'],
+                    template_data['creative'].get('video_id')
+                )
+                
+                # 広告作成
+                ad = st.session_state.meta_client.create_ad(
+                    account_id,
+                    ad_set['id'],
+                    creative['id'],
+                    template_data['ad']['name_template']
+                )
+                
+                # ログ記録
+                st.session_state.logger.log_campaign_creation({
+                    'account_id': account_id,
+                    'campaign_id': campaign['id'],
+                    'ad_set_id': ad_set['id'],
+                    'creative_id': creative['id'],
+                    'ad_id': ad['id'],
+                    'template_used': template_data.get('template_name', 'Unknown')
+                }, True)
+                
+                st.success("🎉 テンプレートからキャンペーン作成が完了しました！")
+                st.info(f"📊 キャンペーンID: {campaign['id']}")
+                st.info(f"📊 広告ID: {ad['id']}")
+                st.warning("⚠️ 広告は一時停止状態で作成されました。配信開始には手動で有効化が必要です。")
+        else:
+            # サイレントモード（一括作成用）
             # キャンペーン作成
             campaign = st.session_state.meta_client.create_campaign(
                 account_id,
@@ -640,13 +1065,12 @@ def create_campaign_from_template(account_id, template_data):
                 'template_used': template_data.get('template_name', 'Unknown')
             }, True)
             
-            st.success("🎉 テンプレートからキャンペーン作成が完了しました！")
-            st.info(f"📊 キャンペーンID: {campaign['id']}")
-            st.info(f"📊 広告ID: {ad['id']}")
-            st.warning("⚠️ 広告は一時停止状態で作成されました。配信開始には手動で有効化が必要です。")
+            return True
             
     except Exception as e:
-        st.error(f"❌ テンプレートキャンペーン作成エラー: {e}")
+        if show_success:
+            st.error(f"❌ テンプレートキャンペーン作成エラー: {e}")
+        return False
 
 def template_management_tab():
     """テンプレート管理タブ"""
