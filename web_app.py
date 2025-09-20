@@ -7,6 +7,10 @@ import sys
 import os
 from datetime import datetime, timedelta
 import pandas as pd
+from dotenv import load_dotenv
+
+# .envファイルを読み込み
+load_dotenv()
 
 # プロジェクトルートをパスに追加
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -33,6 +37,10 @@ if 'drive_manager' not in st.session_state:
     st.session_state.drive_manager = None
 if 'logger' not in st.session_state:
     st.session_state.logger = None
+if 'selected_video' not in st.session_state:
+    st.session_state.selected_video = None
+if 'video_search_results' not in st.session_state:
+    st.session_state.video_search_results = []
 
 def initialize_services():
     """サービスを初期化"""
@@ -116,9 +124,71 @@ def campaign_creation_tab():
     elif creation_method == "⚡ テンプレート使用":
         template_campaign_form()
 
+def video_search_section():
+    """動画検索・選択セクション"""
+    st.subheader("🎬 動画検索・選択")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        video_search_term = st.text_input(
+            "動画名で検索",
+            placeholder="動画名の一部を入力",
+            help="Google Driveから動画を検索"
+        )
+    
+    with col2:
+        if st.button("🔍 動画検索", type="primary"):
+            if video_search_term:
+                with st.spinner("動画を検索中..."):
+                    try:
+                        videos = st.session_state.drive_manager.search_videos_by_name(video_search_term)
+                        st.session_state.video_search_results = videos
+                        if videos:
+                            st.success(f"✅ {len(videos)}個の動画が見つかりました")
+                        else:
+                            st.warning("動画が見つかりませんでした")
+                    except Exception as e:
+                        st.error(f"動画検索エラー: {e}")
+            else:
+                st.warning("検索キーワードを入力してください")
+    
+    # 検索結果の表示
+    if st.session_state.video_search_results:
+        st.subheader("📋 検索結果")
+        
+        for i, video in enumerate(st.session_state.video_search_results):
+            col1, col2, col3 = st.columns([3, 1, 1])
+            
+            with col1:
+                st.write(f"**{video['name']}**")
+                st.write(f"サイズ: {video['size']} | 作成日: {video['created_time'][:10]}")
+            
+            with col2:
+                if st.button(f"選択", key=f"select_video_{i}"):
+                    st.session_state.selected_video = video
+                    st.success(f"✅ 選択しました: {video['name']}")
+                    st.rerun()
+            
+            with col3:
+                if st.button(f"プレビュー", key=f"preview_video_{i}"):
+                    st.info(f"プレビュー: {video['web_view_link']}")
+    
+    # 選択された動画の表示
+    if st.session_state.selected_video:
+        st.success(f"🎬 選択中の動画: **{st.session_state.selected_video['name']}**")
+        if st.button("❌ 選択を解除"):
+            st.session_state.selected_video = None
+            st.rerun()
+
 def single_campaign_form():
     """個別キャンペーン作成フォーム"""
     st.subheader("📝 個別キャンペーン作成")
+    
+    # 動画検索・選択セクション
+    video_search_section()
+    
+    st.markdown("---")
     
     with st.form("single_campaign_form"):
         col1, col2 = st.columns(2)
@@ -148,18 +218,14 @@ def single_campaign_form():
                 help="キャンペーンの名前を入力"
             )
             
-            objective_options = {
-                "リンククリック": "LINK_CLICKS",
-                "コンバージョン": "CONVERSIONS", 
-                "リーチ": "REACH",
-                "ブランド認知": "BRAND_AWARENESS"
-            }
-            objective = st.selectbox(
-                "キャンペーン目的",
-                options=list(objective_options.keys()),
-                help="キャンペーンの目的を選択"
-            )
-            objective_value = objective_options[objective]
+        # 固定設定の表示（小さめ）
+        with st.expander("🔧 固定設定（変更不可）", expanded=False):
+            st.markdown("**キャンペーン設定:**")
+            st.markdown("- 購入タイプ: オークション")
+            st.markdown("- 目的: 売上")
+            st.markdown("- 入札戦略: 最大数量または最高金額")
+            st.markdown("- 予算スケジュール: オフ")
+            st.markdown("- A/Bテスト: オフ")
         
         with col2:
             # 予算・配信設定
@@ -168,7 +234,8 @@ def single_campaign_form():
             budget_type = st.radio(
                 "予算タイプ",
                 ["日単位", "総額"],
-                help="予算の設定方法を選択"
+                help="予算の設定方法を選択（初期値: 日単位）",
+                index=0  # 日単位をデフォルトに
             )
             
             if budget_type == "日単位":
@@ -195,39 +262,51 @@ def single_campaign_form():
                 )
                 budget = total_budget / campaign_days
             
-            # 配信期間
-            col_start, col_end = st.columns(2)
-            with col_start:
-                start_date = st.date_input(
-                    "配信開始日",
-                    value=datetime.now().date(),
-                    help="配信開始日を選択"
-                )
-            with col_end:
+            # 配信期間設定
+            st.subheader("📅 配信期間設定")
+            
+            start_date = st.date_input(
+                "配信開始日",
+                value=datetime.now().date(),
+                help="広告の配信開始日を選択"
+            )
+            
+            # 終了日時の選択機能
+            has_end_date = st.checkbox(
+                "配信終了日を設定する",
+                value=True,
+                help="チェックを外すと無期限配信になります"
+            )
+            
+            if has_end_date:
                 end_date = st.date_input(
                     "配信終了日",
                     value=(datetime.now() + timedelta(days=7)).date(),
-                    help="配信終了日を選択"
+                    help="広告の配信終了日を選択"
                 )
+                end_time = f"{end_date}T23:59:59+0900"
+            else:
+                end_date = None
+                end_time = None
         
-        # 広告クリエイティブ
-        st.subheader("🎨 広告クリエイティブ")
+        # 広告クリエイティブ設定（可変設定と同じ位置に移動）
+        st.subheader("🎨 広告クリエイティブ設定")
         
         col3, col4 = st.columns(2)
         
         with col3:
             headline = st.text_area(
                 "見出し",
-                placeholder="例: 【限定セール】今だけ50%OFF！",
+                value="【検証】1度吸ったら辞められないと話題のコレを試してみたら",
                 height=100,
-                help="広告の見出しを入力"
+                help="広告の見出しを入力（初期値が設定されています）"
             )
             
             description = st.text_area(
                 "説明文",
-                placeholder="例: お得な情報をお見逃しなく！詳細はこちらから。",
+                value="【本日限定】定価5,000円の本体を無料でプレゼント",
                 height=100,
-                help="広告の説明文を入力"
+                help="広告の説明文を入力（初期値が設定されています）"
             )
         
         with col4:
@@ -236,47 +315,52 @@ def single_campaign_form():
                 placeholder="https://example.com/landing-page",
                 help="広告のリンク先URLを入力"
             )
-            
-            # 動画選択
-            st.subheader("🎬 動画選択")
-            
-            video_option = st.radio(
-                "動画選択方法",
-                ["Google Driveから検索", "ファイルアップロード", "動画なし"]
-            )
-            
+        
+        # 動画選択状況の表示
+        st.subheader("🎬 動画選択状況")
+        
+        if st.session_state.selected_video:
+            st.success(f"✅ 選択済み: {st.session_state.selected_video['name']}")
+            video_id = st.session_state.selected_video['id']
+        else:
+            st.info("💡 上記の動画検索セクションで動画を選択してください")
             video_id = None
-            if video_option == "Google Driveから検索":
-                video_search_term = st.text_input(
-                    "動画名で検索",
-                    placeholder="動画名の一部を入力",
-                    help="Google Driveから動画を検索"
-                )
-                if video_search_term and st.button("🔍 動画検索"):
-                    with st.spinner("動画を検索中..."):
-                        try:
-                            videos = st.session_state.drive_manager.search_videos_by_name(video_search_term)
-                            if videos:
-                                video_options = {f"{v['name']} ({v['size']})": v['id'] for v in videos}
-                                selected_video = st.selectbox(
-                                    "検索結果から選択",
-                                    options=list(video_options.keys())
-                                )
-                                video_id = video_options[selected_video]
-                                st.success(f"✅ 動画を選択しました: {selected_video}")
-                            else:
-                                st.warning("動画が見つかりませんでした")
-                        except Exception as e:
-                            st.error(f"動画検索エラー: {e}")
+        
+        # 固定設定の表示（下に移動）
+        with st.expander("🔧 広告セット固定設定（変更不可）", expanded=False):
+            st.markdown("**広告セット設定:**")
+            st.markdown("- 広告セット名: キャンペーン名と同じ")
+            st.markdown("- コンバージョン: ウェブサイト")
+            st.markdown("- パフォーマンス目標: コンバージョン数の最大化")
+            st.markdown("- アトリビューションモデル: 標準")
+            st.markdown("- ダイナミッククリエイティブ: オフ")
+            st.markdown("- 地域: 日本")
+            st.markdown("- Advantage+配置: オン")
+        
+        # 広告クリエイティブ固定設定（下に移動）
+        with st.expander("🔧 広告クリエイティブ固定設定（変更不可）", expanded=False):
+            st.markdown("**広告クリエイティブ設定:**")
+            st.markdown("- パートナーシップ広告: オフ")
+            st.markdown("- クリエイティブリソース: 手動アップロード")
+            st.markdown("- フォーマット: シングル画像または動画")
+            st.markdown("- 複数広告主の広告: オン")
+            st.markdown("- リンク先: ウェブサイト")
+            st.markdown("- コールトゥアクション: 詳しくはこちら")
+            st.markdown("- ブラウザーのアドオン: なし")
+            st.markdown("- 言語: オフ")
+        
+        # データセット選択（簡略化）
+        st.subheader("📊 コンバージョン設定")
+        st.info("💡 **デフォルト設定**: ウェブサイトコンバージョンを使用します")
+        st.info("📝 カスタムデータセットを使用する場合は、Meta広告マネージャーでピクセルを設定してください")
+        dataset_id = None
+        
+        # Facebookページ選択（簡略化）
+        st.subheader("📘 広告表示設定")
+        st.info("💡 **デフォルト設定**: 広告アカウントのデフォルトページを使用します")
+        st.info("📝 カスタムFacebookページを使用する場合は、Facebookでページを作成してください")
+        page_id = None
             
-            elif video_option == "ファイルアップロード":
-                uploaded_file = st.file_uploader(
-                    "動画ファイルをアップロード",
-                    type=['mp4', 'mov', 'avi', 'mkv'],
-                    help="動画ファイルをアップロード（最大100MB）"
-                )
-                if uploaded_file:
-                    st.info("📁 ファイルアップロード機能は開発中です")
         
         # 送信ボタン
         submitted = st.form_submit_button("🚀 キャンペーンを作成", type="primary")
@@ -296,18 +380,27 @@ def single_campaign_form():
                 st.error("❌ リンク先URLは必須です")
                 return
             
+            # 広告名の自動生成（動画名を使用）
+            if st.session_state.selected_video:
+                ad_name = st.session_state.selected_video['name']  # 動画名を広告名に使用
+            else:
+                ad_name = f"{campaign_name}_1"  # 動画がない場合はキャンペーン名_1
+            
             # キャンペーン作成実行
             create_campaign(
                 account_id=account_id,
                 campaign_name=campaign_name,
-                objective=objective_value,
-                budget=budget,
+                budget_amount=budget,
+                budget_type=budget_type,
                 start_date=start_date.strftime('%Y-%m-%d'),
-                end_date=end_date.strftime('%Y-%m-%d'),
+                end_date=end_date.strftime('%Y-%m-%d') if end_date else None,
                 headline=headline,
                 description=description,
                 url=url,
-                video_id=video_id
+                video_id=video_id,
+                dataset_id=dataset_id,
+                page_id=page_id,
+                ad_name=ad_name
             )
 
 def batch_campaign_form():
@@ -915,31 +1008,35 @@ def template_campaign_form():
     except Exception as e:
         st.error(f"テンプレート取得エラー: {e}")
 
-def create_campaign(account_id, campaign_name, objective, budget, start_date, end_date, 
-                   headline, description, url, video_id=None, show_success=True):
-    """キャンペーン作成"""
+def create_campaign(account_id, campaign_name, budget_amount, budget_type, start_date, end_date, 
+                   headline, description, url, video_id=None, dataset_id=None, page_id=None, ad_name=None, show_success=True):
+    """キャンペーン作成（新しい設定対応）"""
     try:
         with st.spinner("キャンペーンを作成中..."):
-            # キャンペーン作成
+            # キャンペーン作成（売上目的固定）
             campaign = st.session_state.meta_client.create_campaign(
-                account_id, campaign_name, objective
+                account_id, campaign_name, budget_amount, budget_type
             )
             
-            # 広告セット作成
+            # 広告セット作成（固定設定多数）
+            ad_set_name = campaign_name  # キャンペーン名と同じ
             ad_set = st.session_state.meta_client.create_ad_set(
-                account_id, campaign['id'], f"{campaign_name}_AdSet",
-                budget, start_date, end_date
+                account_id, campaign['id'], ad_set_name,
+                budget_amount, start_date, end_date, dataset_id
             )
             
             # クリエイティブ作成
             creative = st.session_state.meta_client.create_ad_creative(
                 account_id, f"{campaign_name}_Creative",
-                headline, description, url, video_id
+                headline, description, url, video_id, page_id
             )
             
-            # 広告作成
+            # 広告作成（自動生成された名前を使用）
+            if ad_name is None:
+                ad_name = f"{campaign_name}_1"
+            
             ad = st.session_state.meta_client.create_ad(
-                account_id, ad_set['id'], creative['id'], f"{campaign_name}_Ad"
+                account_id, ad_set['id'], creative['id'], ad_name
             )
             
             # ログ記録
@@ -954,6 +1051,7 @@ def create_campaign(account_id, campaign_name, objective, budget, start_date, en
             if show_success:
                 st.success("🎉 キャンペーン作成が完了しました！")
                 st.info(f"📊 キャンペーンID: {campaign['id']}")
+                st.info(f"📊 広告セットID: {ad_set['id']}")
                 st.info(f"📊 広告ID: {ad['id']}")
                 st.warning("⚠️ 広告は一時停止状態で作成されました。配信開始には手動で有効化が必要です。")
             
@@ -1280,6 +1378,9 @@ def display_videos(videos):
                 if st.button(f"📋 IDをコピー", key=f"copy_{i}"):
                     st.code(video['id'])
                     st.success("IDをクリップボードにコピーしました")
+    
+    # デバッグ情報を表示
+    st.info(f"🔍 デバッグ情報: {len(videos)}個の動画を表示中")
 
 def logs_tab():
     """ログ・履歴タブ"""
